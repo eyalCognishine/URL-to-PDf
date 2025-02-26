@@ -1,17 +1,24 @@
 {
   "name": "url-to-pdf",
   "version": "1.0.0",
-  "description": "��#\u0000 \u0000U\u0000R\u0000L\u0000-\u0000t\u0000o\u0000-\u0000P\u0000D\u0000f\u0000\r\u0000 \u0000",
+  "description": "getting urls of images and return pdf of them",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^22.13.5",
+    "@types/pdfkit": "^0.13.9",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "axios": "^1.8.1",
+    "pdfkit": "^0.16.0"
   }
 }
