@@ -1,0 +1,17 @@
+{
+  "name": "url-to-pdf",
+  "version": "1.0.0",
+  "description": "��#\u0000 \u0000U\u0000R\u0000L\u0000-\u0000t\u0000o\u0000-\u0000P\u0000D\u0000f\u0000\r\u0000 \u0000",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}
