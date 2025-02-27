@@ -1,0 +1,104 @@
+.pdf-container {
+  margin: 40px auto;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  width: fit-content;
+  /* A slight box-shadow for depth */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.input-block {
+  display: flex;
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Improve label appearance and spacing */
+.input-block label {
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #444;
+}
+
+.input-block select {
+  min-width: 200px;
+}
+
+.urls-textarea {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  min-width: 900px;
+  padding: 8px;
+  font-size: 14px;
+  resize: vertical;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  outline: none;
+}
+
+.urls-textarea:focus {
+  border-color: #888;
+}
+
+select {
+  font-size: 14px;
+  padding: 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  outline: none;
+  margin-top: 5px;
+  max-width: 120px;
+}
+
+select:focus {
+  border-color: #888;
+}
+
+button {
+  font-size: 14px;
+  padding: 10px 16px;
+  cursor: pointer;
+
+  /* Rounded corners and a primary-like color */
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+
+  /* Smooth transition on hover */
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  background-color: #0069d9;
+}
+
+button:active {
+  background-color: #005cbf;
+}
+
+.pdf-link {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.pdf-link h2 {
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+  color: #333;
+}
+
+.pdf-link a {
+  text-decoration: none;
+  color: #007bff;
+  font-weight: bold;
+
+  transition: color 0.2s ease;
+}
+
+.pdf-link a:hover {
+  color: #005cbf;
+}
