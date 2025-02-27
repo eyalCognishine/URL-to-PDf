@@ -9,53 +9,58 @@ import { layoutOneImage } from './layouts/layoutOneImage';
 import { layoutTwoImages } from './layouts/layoutTwoImages';
 import { layoutFourImages } from './layouts/layoutFourImages';
 import { layoutEightImages } from './layouts/layoutEightImages';
+import { layoutTwelveImages } from './layouts/layoutTwelveImages';
+import { layoutSixteenImages } from './layouts/layoutSixteenImages';
+import { layoutTwentyImages } from './layouts/layoutTwentyImages';
+
+// Define a union type for layout slots.
+type Slot =
+  | { x: number; y: number; width: number; height: number }
+  | { x: number; y: number; fit: [number, number] };
 
 async function generatePdfFromImages(
   imageUrls: string[],
-  imagesPerPage: 1 | 2 | 4 | 8
+  imagesPerPage: 1 | 2 | 4 | 8 | 12 | 16 | 20
 ): Promise<Buffer> {
-  // 1. הגדרת פורמט העמוד
+  // For imagesPerPage 2 and 8, use portrait; for 1, 4, 12, 16, and 20, force landscape.
   let doc;
-  if (imagesPerPage === 2 || imagesPerPage === 8) {
-    doc = new PDFDocument(); // פורטרט
+  if ([2, 8].includes(imagesPerPage)) {
+    doc = new PDFDocument(); // portrait
   } else {
-    doc = new PDFDocument({ layout: 'landscape' }); // לנדסקייפ
+    doc = new PDFDocument({ layout: 'landscape' });
   }
 
-  // 2. הגדרת סטרים בזיכרון במקום קובץ
+  // Create an in‑memory writable stream.
   const streamBuffer = new WritableStreamBuffer();
   doc.pipe(streamBuffer);
 
-  // 3. קריאת הלוגו לטובת הבאנר
+  // Read the logo for the banner.
   const logoPath = path.join(__dirname, 'assets', 'logo.png');
   const logoBuffer = fs.readFileSync(logoPath);
 
-  // 4. טקסט הרישיון בשתי שורות בדיוק
-  const licenseText = `The PDF may be used only for non-commercial purposes. They may not be used for any illegal or immoral purpose.
-Please refrain from violating any intellectual property rights in or in connection with the images. Failure to comply with this print license agreement may expose you to civil and/or criminal liability`;
+  // License text (exactly 2 lines with one \n).
+  const licenseText = `The PDF may be used only for non-commercial purposes. They may not be used for any illegal or immoral purpose.\nPlease refrain from violating any intellectual property rights in or in connection with the images. Failure to comply with this print license agreement may expose you to civil and/or criminal liability`;
 
-  // 5. הוספת באנר לעמוד הראשון
+  // Add banner to the first page.
   addBanner(doc, logoBuffer, licenseText);
 
-  // 6. נזיז את doc.y בעוד 15px כדי ליצור רווח בין הבאנר לתמונות
+  // Create a 15px gap after the banner.
   doc.y += 15;
-
-  // נגדיר margin דינמי לפי הנקודה שאליה הגענו
   let margin = doc.y;
 
-  // נשמור את ממדי העמוד
+  // Get page dimensions.
   const pageWidth = doc.page.width;
   const pageHeight = doc.page.height;
 
-  // 7. פונקציה שמוסיפה באנר בכל פעם שנוסף עמוד חדש
+  // Add banner to every new page.
   doc.on('pageAdded', () => {
     addBanner(doc, logoBuffer, licenseText);
-    doc.y += 15;           // שוב 15px רווח אחרי הבאנר
-    margin = doc.y;        // עדכן את ה-margin
+    doc.y += 15; // 15px gap after banner
+    margin = doc.y;
   });
 
-  // 8. בהתאם לכמות התמונות בעמוד, נקבל את מערך הסלוטים (מיקומים)
-  let slots: { x: number; y: number; width: number; height: number }[] = [];
+  // Calculate layout slots based on the imagesPerPage option.
+  let slots: Slot[] = [];
   switch (imagesPerPage) {
     case 1:
       slots = layoutOneImage(pageWidth, pageHeight, margin);
@@ -69,39 +74,47 @@ Please refrain from violating any intellectual property rights in or in connecti
     case 8:
       slots = layoutEightImages(pageWidth, pageHeight, margin);
       break;
+    case 12:
+      slots = layoutTwelveImages(pageWidth, pageHeight, margin);
+      break;
+    case 16:
+      slots = layoutSixteenImages(pageWidth, pageHeight, margin);
+      break;
+    case 20:
+      slots = layoutTwentyImages(pageWidth, pageHeight, margin);
+      break;
     default:
-      throw new Error('Invalid imagesPerPage value. Allowed: 1, 2, 4, 8');
+      throw new Error('Invalid imagesPerPage value.');
   }
 
-  // 9. עבור כל קבוצת תמונות, נייצר עמוד (פרט לראשון שכבר קיים) ונמקם אותן
+  // For each group of images, create a new page (except the first) and position them.
   for (let i = 0; i < imageUrls.length; i += imagesPerPage) {
-    // בעמוד הראשון כבר נוספו באנר ו-margin, לכן רק בעמודים הבאים:
     if (i !== 0) {
       doc.addPage();
-      // אחרי הוספת עמוד חדש, יופעל pageAdded => יתווסף באנר אוטומטית
-      // ויתעדכן margin
-      // אבל שים לב שהלייאאוט (slots) מחושב רק פעם אחת. אם תרצה לחשב אותו מחדש בכל עמוד - צריך לקרוא שוב לפונקציות הלייאאוט.
     }
-
     const currentUrls = imageUrls.slice(i, i + imagesPerPage);
     for (let j = 0; j < currentUrls.length; j++) {
       try {
         const response = await axios.get(currentUrls[j], { responseType: 'arraybuffer' });
         const imageBuffer = Buffer.from(response.data, 'binary');
-
-        // המיקומים מחושבים לפי slots[j]
-        const { x, y, width, height } = slots[j];
-        doc.image(imageBuffer, x, y, { width, height });
+        const slot = slots[j];
+        // Use the 'fit' option so that the image is scaled as large as possible
+        // within the cell without changing its original aspect ratio.
+        if ('fit' in slot) {
+          doc.image(imageBuffer, slot.x, slot.y, { fit: slot.fit, align: 'center', valign: 'center' });
+        } else {
+          doc.image(imageBuffer, slot.x, slot.y, { width: slot.width, height: slot.height });
+        }
       } catch (error) {
         console.error(`Failed to load image: ${currentUrls[j]}`, error);
       }
     }
   }
 
-  // 10. סיום יצירת ה-PDF
+  // Finalize the PDF.
   doc.end();
 
-  // 11. החזרת ה-Buffer של ה-PDF
+  // Return a Promise that resolves with the PDF Buffer.
   return new Promise((resolve, reject) => {
     streamBuffer.on('finish', () => {
       const pdfBuffer = streamBuffer.getContents();

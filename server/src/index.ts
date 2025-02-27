@@ -22,10 +22,10 @@ app.post('/generate-pdf', async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    if (![1, 2, 4, 8].includes(layoutOption)) {
-      res.status(400).json({ error: 'Invalid layoutOption (choose 1,2,4,8)' });
+    if (![1, 2, 4, 8, 12, 16, 20].includes(layoutOption)) {
+      res.status(400).json({ error: 'Invalid layoutOption (choose 1,2,4,8,12,16,20)' });
       return;
-    }
+    }    
 
     // Generate the PDF in memory
     const pdfBuffer = await generatePdfFromImages(imageUrls, layoutOption);
