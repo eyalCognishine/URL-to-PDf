@@ -3,7 +3,7 @@ import axios from 'axios';
 import path from 'path';
 import fs from 'fs';
 import { WritableStreamBuffer } from 'stream-buffers';
-import sharp from 'sharp'; // Added for image metadata
+import sharp from 'sharp';
 
 import { addBanner } from './banner';
 import { layoutOneImage } from './layouts/layoutOneImage';
@@ -22,6 +22,8 @@ type Slot =
 /**
  * Generates a PDF from an array of image URLs. The imagesPerPage parameter
  * defines how many images appear on each page (1, 2, 4, 8, 12, 16, 20).
+ *
+ * This version centers each image in its slot by calculating offsets manually.
  */
 async function generatePdfFromImages(
   imageUrls: string[],
@@ -95,65 +97,77 @@ Please refrain from violating any intellectual property rights in or in connecti
 
   // Process images in groups (one page at a time)
   for (let i = 0; i < imageUrls.length; i += imagesPerPage) {
+    // Add new page (except for the first iteration)
     if (i !== 0) {
       doc.addPage();
     }
+
     const currentUrls = imageUrls.slice(i, i + imagesPerPage);
+
     for (let j = 0; j < currentUrls.length; j++) {
       try {
         // Load the image as a Buffer from the URL
         const response = await axios.get(currentUrls[j], { responseType: 'arraybuffer' });
         const imageBuffer = Buffer.from(response.data, 'binary');
 
-        // Get image dimensions using sharp
+        // Optional: get actual image dimensions using sharp
         const metadata = await sharp(imageBuffer).metadata();
-        const originalWidth = metadata.width || 1; // Default to 1 to avoid division by zero
+        const originalWidth = metadata.width || 1;
         const originalHeight = metadata.height || 1;
-        //console.log(`Image ${j} dimensions: ${originalWidth}x${originalHeight}`); // Debugging
 
-        // Calculate aspect ratio
+        // Calculate the aspect ratio (width / height)
         const aspectRatio = originalWidth / originalHeight;
 
         const slot = slots[j];
 
-        // Determine fitting dimensions while preserving aspect ratio
-        let fitWidth: number, fitHeight: number;
+        // We'll compute the final width & height to preserve aspect ratio
+        // Then center it within the bounding box (slot).
+        let boxWidth: number;
+        let boxHeight: number;
+
         if ('fit' in slot) {
-          fitWidth = slot.fit[0];
-          fitHeight = slot.fit[1];
-
-          if (aspectRatio > 1) {
-            // Image is wider than tall, limit by width
-            fitHeight = fitWidth / aspectRatio;
-          } else {
-            // Image is taller than wide, limit by height
-            fitWidth = fitHeight * aspectRatio;
-          }
-
-          doc.image(imageBuffer, slot.x, slot.y, {
-            fit: [fitWidth, fitHeight],
-            align: 'center',
-            valign: 'center',
-          });
+          // This means the layout gave us a bounding box to "fit" into
+          [boxWidth, boxHeight] = slot.fit;
         } else {
-          // Handle non-fit slots (if any)
-          fitWidth = slot.width;
-          fitHeight = slot.height;
-
-          if (aspectRatio > 1) {
-            fitHeight = fitWidth / aspectRatio;
-          } else {
-            fitWidth = fitHeight * aspectRatio;
-          }
-
-          doc.image(imageBuffer, slot.x, slot.y, {
-            width: fitWidth,
-            height: fitHeight,
-          });
+          // The layout gave us a bounding box with exact width & height
+          boxWidth = slot.width;
+          boxHeight = slot.height;
         }
+
+        // Compute final image size while preserving aspect ratio
+        let finalWidth = boxWidth;
+        let finalHeight = boxHeight;
+
+        if (aspectRatio > 1) {
+          // Image is wider than tall => limit by boxWidth
+          finalHeight = finalWidth / aspectRatio;
+          // If that height is bigger than boxHeight, adjust
+          if (finalHeight > boxHeight) {
+            finalHeight = boxHeight;
+            finalWidth = finalHeight * aspectRatio;
+          }
+        } else {
+          // Image is taller than wide => limit by boxHeight
+          finalWidth = finalHeight * aspectRatio;
+          // If that width is bigger than boxWidth, adjust
+          if (finalWidth > boxWidth) {
+            finalWidth = boxWidth;
+            finalHeight = finalWidth / aspectRatio;
+          }
+        }
+
+        // Now compute the offset so the image is centered in the box
+        const offsetX = slot.x + (boxWidth - finalWidth) / 2;
+        const offsetY = slot.y + (boxHeight - finalHeight) / 2;
+
+        // Place the image
+        doc.image(imageBuffer, offsetX, offsetY, {
+          width: finalWidth,
+          height: finalHeight,
+        });
       } catch (error) {
         console.error(`Failed to load or process image: ${currentUrls[j]}`, error);
-        // Optionally, skip or handle the failed image (e.g., add a placeholder)
+        // Optionally, you could draw a placeholder or skip this image
       }
     }
   }
