@@ -25,6 +25,7 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "pdfkit": "^0.16.0",
+    "sharp": "^0.33.5",
     "stream-buffers": "^3.0.3"
   }
 }
