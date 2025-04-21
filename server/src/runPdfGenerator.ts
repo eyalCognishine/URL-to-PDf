@@ -203,9 +203,9 @@ function placeTextInSlot(
   });
 }
 
-/** placeImageAndTextInSlot:
- *  Places the image centered in the slot, then adds text below it.
- *  If there's not enough room, the text is clipped.
+/**
+ * Same‑size images + single‑line caption with
+ * 10 px gap (image→caption) and 5 px bottom margin.
  */
 async function placeImageAndTextInSlot(
   doc: PDFKit.PDFDocument,
@@ -215,45 +215,85 @@ async function placeImageAndTextInSlot(
   fontSize: number
 ) {
   try {
-    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-    const imageBuffer = Buffer.from(response.data, 'binary');
-    const metadata = await sharp(imageBuffer).metadata();
-    const originalWidth = metadata.width || 1;
-    const originalHeight = metadata.height || 1;
+    // ── constants ────────────────────────────────────────────────
+    const GAP_IMAGE_TEXT = 10; // image → caption
+    const BOTTOM_GAP     = 5;  // caption → slot bottom
 
+    // ── slot geometry ────────────────────────────────────────────
     const { boxWidth, boxHeight } = getSlotDimensions(slot);
-    const { finalWidth, finalHeight } = computeFittedImageSize(
-      originalWidth,
-      originalHeight,
-      boxWidth,
-      boxHeight
+    const usableWidth = boxWidth - 10;        // 5 px padding L/R
+    const leftPadding = slot.x   + 5;
+
+    // Font once for measuring & drawing
+    doc.font('Helvetica').fontSize(fontSize);
+
+    // Height of one text line
+    const lineHeight = doc.heightOfString('Hg', { width: usableWidth });
+
+    // Space image may occupy so everything fits
+    const maxImageHeight = Math.max(
+      0,
+      boxHeight - lineHeight - GAP_IMAGE_TEXT - BOTTOM_GAP
     );
 
+    // ── fetch image & work out final size ───────────────────────
+    const { data }   = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const metadata   = await sharp(Buffer.from(data)).metadata();
+    const origW      = metadata.width  || 1;
+    const origH      = metadata.height || 1;
+
+    const { finalWidth, finalHeight } = computeFittedImageSize(
+      origW,
+      origH,
+      boxWidth,
+      maxImageHeight
+    );
+
+    // ── 1. draw image (centred horizontally, top‑aligned) ───────
     const offsetX = slot.x + (boxWidth - finalWidth) / 2;
-    const offsetY = slot.y + (boxHeight - finalHeight) / 2;
-    doc.image(imageBuffer, offsetX, offsetY, {
-      width: finalWidth,
+    const offsetY = slot.y;
+
+    doc.image(Buffer.from(data), offsetX, offsetY, {
+      width:  finalWidth,
       height: finalHeight
     });
 
-    doc.fontSize(fontSize).font('Helvetica').fillColor('black');
+    // ── 2. draw caption right under the picture ─────────────────
+    const captionY = offsetY + finalHeight + GAP_IMAGE_TEXT;
+    const caption  = truncateToWidth(doc, text, usableWidth, '…');
 
-    const gapUnderImage = 5;
-    const bottomOfImage = offsetY + finalHeight;
-    const textTop = bottomOfImage + gapUnderImage;
-
-    const usableWidth = boxWidth - 10;
-    const availableHeight = slot.y + boxHeight - textTop - 5;
-
-    doc.text(text, slot.x + 5, textTop, {
-      width: usableWidth,
-      height: availableHeight,
-      align: 'center'
+    doc.fillColor('black').text(caption, leftPadding, captionY, {
+      width:     usableWidth,
+      height:    lineHeight,  // forbid wrapping
+      align:     'center',
+      lineBreak: false
     });
-  } catch (error) {
-    console.error(`Failed to load or process image: ${imageUrl}`, error);
+
+  } catch (err) {
+    console.error(`Failed to place image/text in slot (${imageUrl}):`, err);
   }
 }
+
+/**
+ * Trims a string so its rendered width ≤ maxWidth, adding an ellipsis if needed.
+ */
+function truncateToWidth(
+  doc: PDFKit.PDFDocument,
+  text: string,
+  maxWidth: number,
+  ellipsis = '…'
+): string {
+  if (doc.widthOfString(text) <= maxWidth) return text;
+
+  let t = text;
+  while (t.length && doc.widthOfString(t + ellipsis) > maxWidth) {
+    t = t.slice(0, -1);
+  }
+  return t.trimEnd() + ellipsis;
+}
+
+
+
 
 /** getSlotDimensions:
  *  Extracts {boxWidth, boxHeight} from slot definition.
